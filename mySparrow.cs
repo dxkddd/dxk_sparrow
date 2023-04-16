@@ -1,32 +1,33 @@
 using Assets.dxk_Scirpt;
 using System.Collections;
 using System.Collections.Generic;
+using Unity.VisualScripting;
 using UnityEngine;
 
-public class mySparrow : MonoBehaviour,IPlayer
+public class mySparrow : MonoBehaviour, IPlayer
 {
     private CharacterController controller;
     private Animator animator;
     public new Camera camera;
-    
+
     //playerMovement
     private Vector3 playerVelocity;
-    private bool groundedPlayer;
+    private bool onTheGround;
     private float angleY;
     public float playerSpeed;
     public float jumpHeight;
-    private int jumpCount = 1;
     public float gravityValue;
-    float horizontal;
-    float vertical;
-    bool hasHorizontalInput;
-    bool hasVerticalInput;
-    bool isWalking;
-    bool isHeightest=false;
-    
-    //playerAttack
-    bool isAttacking;
+    private float horizontal;
+    private float vertical;
+    private bool hasHorizontalInput;
+    private bool hasVerticalInput;
+    private bool isWalking;
+    public int power;
+    private int powerReduceValue = 10;
+    private bool isReducing = false;
 
+    //playerAttack
+    private bool isAttacking;
 
     private void Start()
     {
@@ -35,14 +36,12 @@ public class mySparrow : MonoBehaviour,IPlayer
     }
     private void FixedUpdate()
     {
-        groundedPlayer = isGrounded();
+        onTheGround = isGrounded();
     }
-
     void Update()
     {
         playerMovement();
         playerAttack();
-        
     }
     private void playerMovement()
     {
@@ -53,14 +52,14 @@ public class mySparrow : MonoBehaviour,IPlayer
         isWalking = hasHorizontalInput || hasVerticalInput;
         animator.SetBool("isWalking", isWalking);
 
-        if (groundedPlayer && playerVelocity.y < 0)
+        if (onTheGround && playerVelocity.y < 0)
         {
             playerVelocity.y = -0.5f;
             animator.SetBool("Fly", false);
         }
 
         Vector3 move = new Vector3(horizontal, 0, vertical);
-        angleY =Camera.main.transform.rotation.eulerAngles.y;
+        angleY = Camera.main.transform.rotation.eulerAngles.y;
         move = Quaternion.Euler(0, angleY, 0) * move;
         controller.Move(move * Time.deltaTime * playerSpeed);
 
@@ -69,49 +68,45 @@ public class mySparrow : MonoBehaviour,IPlayer
             gameObject.transform.forward = move.normalized;
         }
 
-        //·É
-        if (Input.GetButtonDown("Jump") && groundedPlayer)
-        {
-            playerVelocity.y += Mathf.Sqrt(jumpHeight * -2.0f * gravityValue);
-            animator.SetBool("Fly", true);
-        }
-        if (animator.GetBool("Fly"))
-        {
-            if (Input.GetButtonDown("Jump") && jumpCount <= 3)
-            {
-                if ((isHeightest==false) && jumpCount==3)
-                {
-                    playerVelocity.y += Mathf.Sqrt(jumpHeight * -1.0f * gravityValue);
-                    isHeightest= true;
-                }
-                else
-                {
-                    playerVelocity.y += Mathf.Sqrt(jumpHeight * -1.0f * gravityValue);
-                }
-                animator.SetBool("Fly", true);
-                jumpCount++;
-            }
-            else if (Input.GetButtonDown("Jump") && isHeightest==true)
-            {
-                gravityValue = (float)0;
-                playerVelocity.y -= 0.2f;
-            }
-            else if(Input.GetButtonUp("Jump") && isHeightest==true)
-            {
-                gravityValue= (float)-9.81;
-            }
-            if(jumpCount>3&&isGrounded()){
-                jumpCount = 1;
-                gravityValue = (float)-9.81;
-                isHeightest= false;
-            }
-            
-        }
+        Fly();
 
         playerVelocity.y += gravityValue * Time.deltaTime;
         controller.Move(playerVelocity * Time.deltaTime);
     }
-    private void playerAttack() {
+    private void Fly()
+    {
+        if (Input.GetButtonDown("Jump") && onTheGround)
+        {
+            animator.SetBool("Fly", true);
+            playerVelocity.y += Mathf.Sqrt(jumpHeight * -2.0f * gravityValue);
+        }
+        if (Input.GetButtonDown("Jump") && !onTheGround)
+        {
+            animator.SetBool("Fly", true);
+            if (power > 0)
+            {
+                gravityValue = 0f;
+                playerVelocity.y += 0.5f;
+                if (!isReducing)
+                {
+                    InvokeRepeating("powerReduce", 1.0f, 1.0f);
+                    isReducing = true;
+                }
+            }
+        }
+        if (Input.GetButtonUp("Jump"))
+        {
+            gravityValue = -9.81f;
+        }
+    }
+    private void powerReduce()
+    {
+        Debug.Log("doit");
+        power -= powerReduceValue;
+        if (power <= 0) gravityValue=-9.81f;
+    }
+    private void playerAttack()
+    {
         isAttacking = isAttacked();
         animator.SetBool("isAttacking", isAttacking);
     }
@@ -119,6 +114,14 @@ public class mySparrow : MonoBehaviour,IPlayer
     {
         if (Physics.Raycast(this.transform.position, -Vector3.up, 0.1f))
         {
+            if (isReducing)
+            {
+                CancelInvoke("powerReduce");
+                isReducing= false;
+            }
+            power = 100;
+            gravityValue = (float)-9.81;
+            animator.SetBool("Fly", false);
             return true;
         }
         else
@@ -137,6 +140,5 @@ public class mySparrow : MonoBehaviour,IPlayer
             return false;
         }
     }
-
     
 }
